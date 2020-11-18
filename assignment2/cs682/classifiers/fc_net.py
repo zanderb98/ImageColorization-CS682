@@ -274,10 +274,18 @@ class FullyConnectedNet(object):
                 scores, c2 = batchnorm_forward(scores, self.params["gamma" + str(layer + 1)],
                                                self.params["beta" + str(layer + 1)], self.bn_params[layer])
                 cache["Batchnorm" + str(layer + 1)] = c2
+            elif self.normalization == "layernorm":
+                scores, c2 = layernorm_forward(scores, self.params["gamma" + str(layer + 1)],
+                                               self.params["beta" + str(layer + 1)], self.bn_params[layer])
+                cache["Layernorm" + str(layer + 1)] = c2
             
             scores, c3 = relu_forward(scores)
             cache["ReLU" + str(layer + 1)] = c3
-            # TODO Dropout here
+            
+            if self.use_dropout:
+                scores, c4 = dropout_forward(scores, self.dropout_param)
+                cache["Dropout" + str(layer + 1)] = c4
+                
             
         scores, c = affine_forward(scores, self.params["W" + str(self.num_layers)], self.params["b" + str(self.num_layers)])
         cache["Affine" + str(self.num_layers)] = c
@@ -319,7 +327,8 @@ class FullyConnectedNet(object):
         grads["b" + str(self.num_layers)] = db
                 
         for layer in reversed(range(self.num_layers - 1)):
-            # TODO Dropout gradient
+            if self.use_dropout:
+                dout = dropout_backward(dout, cache["Dropout" + str(layer + 1)])
             
             # ReLU Gradient
             dout = relu_backward(dout, cache["ReLU" + str(layer + 1)])
@@ -329,6 +338,10 @@ class FullyConnectedNet(object):
                 dout, dgamma, dbeta = batchnorm_backward_alt(dout, cache["Batchnorm" + str(layer + 1)])
                 grads["gamma" + str(layer + 1)] = dgamma
                 grads["beta" + str(layer + 1)] = dbeta
+            elif self.normalization=='layernorm':
+                dout, dgamma, dbeta = layernorm_backward(dout, cache["Layernorm" + str(layer + 1)])
+                grads["gamma" + str(layer + 1)] = dgamma
+                grads["beta" + str(layer + 1)] = dbeta                
             else:
                 grads["gamma" + str(layer + 1)] = 0
                 grads["beta" + str(layer + 1)] = 0
